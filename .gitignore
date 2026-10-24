@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 charts/
 logs/
+data/
+backtest_results/
