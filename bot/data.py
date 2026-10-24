@@ -22,3 +22,18 @@ def fetch_bars(cfg, symbol: str) -> pd.DataFrame:
         return df
     df = df.xs(symbol, level="symbol") if "symbol" in df.index.names else df
     return df[["open", "high", "low", "close", "volume"]].tail(cfg.lookback_bars)
+
+
+def fetch_daily_bars(cfg, symbol: str, days: int = 400) -> pd.DataFrame:
+    """Completed daily bars only: today's still-forming bar is dropped, so a live decision
+    uses the same data the backtest does (yesterday's close)."""
+    client = StockHistoricalDataClient(cfg.alpaca_key, cfg.alpaca_secret)
+    start = datetime.now(timezone.utc) - timedelta(days=days)
+    req = StockBarsRequest(symbol_or_symbols=symbol, timeframe=TimeFrame.Day, start=start, feed="iex")
+    df = client.get_stock_bars(req).df
+    if df.empty:
+        return df
+    df = df.xs(symbol, level="symbol") if "symbol" in df.index.names else df
+    today = pd.Timestamp.now(tz="America/New_York").date()
+    df = df[df.index.tz_convert("America/New_York").date < today]
+    return df[["open", "high", "low", "close", "volume"]]

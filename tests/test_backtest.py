@@ -40,16 +40,16 @@ def test_rules_respect_position_and_order_limits():
     assert per_day.max() <= 4
     for t in r.trades:
         if t.side == "buy":
-            assert t.notional <= r.equity.max() * 0.10 + 1
+            assert t.notional <= r.equity.max() * 0.50 + 1
     assert "Buy and hold SPY (100%)" in r.benchmarks
     assert "Past results" in summary(r)
 
 
-def test_always_buy_never_exceeds_ten_percent():
+def test_always_buy_never_exceeds_the_cap():
     bars = {"SPY": fake_bars(seed=3)}
     r = run(CFG, bars, days=25, decide=lambda df, s: Decision("buy", 0.9, "test"))
-    # First buy fills the 10%; later ones only top up after the price dips (same as live).
-    assert abs(r.trades[0].notional - 10_000) < 1
+    # First buy fills the 50%; later ones only top up after the price dips (same as live).
+    assert abs(r.trades[0].notional - 50_000) < 1
     assert sum(t.notional for t in r.trades[1:]) < 1_000
 
 
@@ -63,7 +63,7 @@ def test_daily_loss_stop_blocks_new_orders():
     df = fake_bars(seed=5)
     crash_day = df.index.tz_convert("America/New_York").normalize().unique()[20]
     after = df.index.tz_convert("America/New_York") >= crash_day + pd.Timedelta(hours=10)
-    df.loc[after, ["open", "high", "low", "close"]] *= 0.5   # 50% gap down, so a 10% position loses 5%
+    df.loc[after, ["open", "high", "low", "close"]] *= 0.5   # 50% gap down, so a 50% position loses 25%
 
     r = run(CFG, {"SPY": df}, days=25, decide=lambda w, s: Decision("buy", 0.9, "dip"))
     crash = [t for t in r.trades if t.time.tz_convert("America/New_York").date() == crash_day.date()]

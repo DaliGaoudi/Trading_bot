@@ -1,11 +1,31 @@
 # Paper trading bot (Alpaca + AI via OpenRouter)
 
-A small Python bot that looks at price charts for SPY and QQQ, asks an AI model through OpenRouter (or a simple
-rule set) whether to buy, sell or hold, checks the answer against risk limits, and places
-orders on your **Alpaca paper account only**. There is no live-trading code path:
-`paper=True` is hard-coded and asserted.
+A small Python bot that trades SPY and QQQ on your **Alpaca paper account only**. There is no
+live-trading code path: `paper=True` is hard-coded and asserted.
 
-## How it works (one pass)
+It has two strategies, picked with `STRATEGY` in `.env`:
+
+- **`trend` (default)**: once a day, hold a symbol while its last daily close is above its 200-day
+  average, and move to cash when it closes below. This is the rule with the strongest long-run
+  evidence. If `OPENROUTER_API_KEY` is set, the AI looks at a daily chart before each buy and can
+  **veto** it (for example "wait, RSI is extreme"). The AI can never start a trade or block a sell.
+  That is at most one call per symbol per day, usually a handful a month.
+- **`intraday`**: the original 15-minute strategy below, where the AI reads the chart and decides.
+  Its year-long backtest made less than simply holding, so it's kept for comparison.
+
+## Trend strategy (one daily pass)
+
+1. **Fetch daily bars**: about 400 days from Alpaca, completed days only. `bot/data.py`
+2. **Rule**: close above the 200-day average and not holding → buy; close below and holding → sell;
+   otherwise do nothing. `bot/strategy.py`
+3. **AI veto** (buys only, optional): sends a daily chart (SMA 50/200, RSI) to `AI_MODEL`; anything
+   but a confident "buy" (confidence ≥ 0.65) cancels the buy for today. Set `AI_VETO=false` to turn it off.
+4. **Risk check and order**: the same `bot/risk.py` limits and dry-run switch as below.
+
+With `--loop` the bot checks every 30 minutes and runs the daily pass once per trading day while the
+market is open. Orders fill during the session after the close the decision was based on.
+
+## Intraday strategy (one pass)
 
 1. **Fetch bars**: last ~120 fifteen-minute bars from Alpaca (free IEX feed). `bot/data.py`
 2. **Indicators**: SMA 10, SMA 30, RSI 14. `bot/indicators.py`
@@ -14,9 +34,9 @@ orders on your **Alpaca paper account only**. There is no live-trading code path
    `{action, confidence, reason}`. With no OpenRouter key it falls back to an SMA crossover rule. `bot/analyst.py`
 5. **Risk check**: every order must pass `bot/risk.py`:
    - only symbols on the allow-list (SPY, QQQ)
-   - at most 10% of equity in one symbol
+   - at most 50% of equity in one symbol (so SPY + QQQ together can be fully invested)
    - at most 4 orders per day
-   - stop for the day after a 2% drop in equity
+   - no new buys for the day after a 2% drop in equity (selling is always allowed)
    - ignore signals with confidence below 0.65
 6. **Order**: buys a dollar amount (market order), or closes the position on "sell".
    With `DRY_RUN=true` (the default) it only logs what it *would* do.
@@ -50,24 +70,27 @@ Open `.env` in a text editor and paste your keys there (never in chat, never in 
 
 ```bash
 python -m bot.main          # one pass, then exit
-python -m bot.main --loop   # repeat every 15 minutes (Ctrl+C to stop)
+python -m bot.main --loop   # keep running (trend: once a day; intraday: every 15 min). Ctrl+C stops
 pytest -q                   # run the tests (no keys needed)
 ```
 
 ## Backtest
 
 ```bash
-python -m bot.backtest              # last 365 days of SPY/QQQ 15-minute bars, rule-based analyst
-python -m bot.backtest --days 90    # shorter window
-python -m bot.backtest --analyst ai # AI analyst: prints the number of calls and a cost estimate first
+python -m bot.backtest                          # trend rule, last 365 days of daily bars
+python -m bot.backtest --days 1825              # trend rule over 5 years (more meaningful)
+python -m bot.backtest --max-position-pct 0.1   # same, with 10% per symbol instead of 50%
+python -m bot.backtest --analyst ai             # trend rule + AI veto: prints the max call count and cost first
+python -m bot.backtest --strategy intraday      # the original 15-minute strategy
 ```
 
 It replays the same decision code and `bot/risk.py` limits bar by bar, starting from $100,000,
 filling each order at the next bar's open (plus 0.01% slippage), and prints profit/loss, max
-drawdown and order count next to buy-and-hold SPY. Results go to `backtest_results/`
+drawdown and order count next to buy-and-hold SPY and a hold with the same maximum exposure. Results go to `backtest_results/`
 (`summary.txt`, `trades.csv`, `equity.csv`, `equity.png`); downloaded bars are cached in `data/`.
-Replaying the AI over a year is about 12,500 chart calls (roughly $25-65 with Sonnet 5), so it asks
-before sending anything. Past results don't predict future returns.
+Replaying the intraday AI over a year is about 12,500 chart calls (roughly $25-65 with Sonnet 5);
+the trend veto needs at most a few hundred. Either way it asks before sending anything. A backtest of
+any AI over dates it may have seen in training flatters it, so forward paper trading is the real test. Past results don't predict future returns.
 
 The US market is open 15:30–22:00 German time (Mon–Fri); outside those hours the bot
 logs "market closed" and does nothing. Watch a few dry runs, then set `DRY_RUN=false` to

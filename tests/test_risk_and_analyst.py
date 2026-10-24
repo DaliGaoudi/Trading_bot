@@ -18,11 +18,11 @@ def acct(**kw):
 
 def test_buy_capped_at_max_position():
     ok, notional, _ = check(L, "SPY", "buy", 0.9, acct())
-    assert ok and notional == 10_000
+    assert ok and notional == 50_000
 
 
 def test_buy_tops_up_only_to_limit():
-    ok, notional, _ = check(L, "SPY", "buy", 0.9, acct(position_value=7_000))
+    ok, notional, _ = check(L, "SPY", "buy", 0.9, acct(position_value=47_000))
     assert ok and notional == 3_000
 
 
@@ -36,6 +36,10 @@ def test_blocks_low_confidence():
 
 def test_blocks_after_daily_loss():
     assert not check(L, "SPY", "buy", 0.9, acct(equity=97_000))[0]
+
+
+def test_daily_loss_stop_still_allows_selling():
+    assert check(L, "SPY", "sell", 0.9, acct(equity=97_000, position_value=40_000))[0]
 
 
 def test_blocks_after_trade_limit():

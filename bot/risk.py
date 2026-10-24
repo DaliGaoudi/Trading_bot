@@ -20,12 +20,13 @@ def check(limits, symbol: str, action: str, confidence: float, acct: AccountStat
         return False, 0.0, f"confidence {confidence:.2f} below {limits.min_confidence}"
     if acct.trades_today >= limits.max_trades_per_day:
         return False, 0.0, "daily trade limit reached"
-    if acct.last_equity > 0 and (acct.equity - acct.last_equity) / acct.last_equity <= -limits.max_daily_loss_pct:
-        return False, 0.0, "daily loss limit hit, no more trades today"
     if action == "sell":
+        # Closing a position only lowers risk, so the daily loss stop never blocks it.
         if acct.position_value <= 0:
             return False, 0.0, "nothing to sell"
         return True, acct.position_value, "close position"
+    if acct.last_equity > 0 and (acct.equity - acct.last_equity) / acct.last_equity <= -limits.max_daily_loss_pct:
+        return False, 0.0, "daily loss limit hit, no more buys today"
     room = acct.equity * limits.max_position_pct - acct.position_value
     if room < 1:
         return False, 0.0, "position already at max size"
