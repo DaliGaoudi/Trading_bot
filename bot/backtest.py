@@ -2,7 +2,7 @@
 
     python -m bot.backtest                          # trend strategy (daily bars), last 365 days
     python -m bot.backtest --days 1825              # trend strategy over 5 years
-    python -m bot.backtest --max-position-pct 0.5   # 50% per symbol instead of 10%
+    python -m bot.backtest --max-position-pct 0.1   # 10% per symbol instead of 50%
     python -m bot.backtest --strategy intraday      # the original 15-minute strategy
     python -m bot.backtest --analyst ai             # with the AI (veto or chart analyst); asks about cost first
 
@@ -418,7 +418,7 @@ def main():
     p.add_argument("--equity", type=float, default=100_000)
     p.add_argument("--slippage-bps", type=float, default=1.0, help="cost per fill, in 0.01%% steps")
     p.add_argument("--max-position-pct", type=float, default=None,
-                   help="override the per-symbol cap for this run only, e.g. 0.5 (trend only)")
+                   help="override the per-symbol cap for this run only, e.g. 0.1 (trend only)")
     p.add_argument("--analyst", choices=["rules", "ai"], default="rules",
                    help="ai = AI veto (trend) or AI chart analyst (intraday); asks about cost first")
     p.add_argument("--yes", action="store_true", help="skip the cost question for --analyst ai")

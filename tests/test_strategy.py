@@ -58,11 +58,11 @@ def test_run_trend_exits_the_slide():
     r = run_trend(CFG, bars, days=300)
     sides = [t.side for t in r.trades if t.symbol == "SPY"]
     assert sides[0] == "buy" and "sell" in sides
-    hold = r.benchmarks["Hold 10% SPY + 10% QQQ (same max exposure)"]
+    hold = r.benchmarks["Hold 50% SPY + 50% QQQ (same max exposure)"]
     assert r.equity.iloc[-1] > hold.iloc[-1]          # stepped aside for most of the slide
     for t in r.trades:
         if t.side == "buy":
-            assert t.notional <= 100_000 * 0.10 + 1
+            assert t.notional <= 100_000 * 0.50 + 1
     per_day = pd.Series([(t.time, t.symbol) for t in r.trades]).value_counts()
     assert per_day.max() == 1
     assert "Bot (trend rule)" in summary(r)
@@ -70,9 +70,9 @@ def test_run_trend_exits_the_slide():
 
 def test_run_trend_position_override():
     bars = {"SPY": daily_bars(rise_then_crash()), "QQQ": daily_bars(rise_then_crash())}
-    r = run_trend(CFG, bars, days=300, max_position_pct=0.5)
-    assert abs(r.trades[0].notional - 50_000) < 1
-    assert "Hold 50% SPY" in "".join(r.benchmarks)
+    r = run_trend(CFG, bars, days=300, max_position_pct=0.1)
+    assert abs(r.trades[0].notional - 10_000) < 1
+    assert "Hold 10% SPY" in "".join(r.benchmarks)
 
 
 def test_vetoing_everything_never_trades_and_counts_calls():

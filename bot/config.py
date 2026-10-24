@@ -10,7 +10,7 @@ load_dotenv()
 @dataclass(frozen=True)
 class RiskLimits:
     symbols: tuple = ("SPY", "QQQ")      # only these can ever be traded
-    max_position_pct: float = 0.10       # max 10% of equity in any one symbol
+    max_position_pct: float = 0.50       # max 50% of equity in any one symbol (both = fully invested)
     max_trades_per_day: int = 4
     max_daily_loss_pct: float = 0.02     # stop trading for the day after -2%
     min_confidence: float = 0.65         # ignore weak AI signals

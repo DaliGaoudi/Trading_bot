@@ -34,9 +34,9 @@ market is open. Orders fill during the session after the close the decision was 
    `{action, confidence, reason}`. With no OpenRouter key it falls back to an SMA crossover rule. `bot/analyst.py`
 5. **Risk check**: every order must pass `bot/risk.py`:
    - only symbols on the allow-list (SPY, QQQ)
-   - at most 10% of equity in one symbol
+   - at most 50% of equity in one symbol (so SPY + QQQ together can be fully invested)
    - at most 4 orders per day
-   - stop for the day after a 2% drop in equity
+   - no new buys for the day after a 2% drop in equity (selling is always allowed)
    - ignore signals with confidence below 0.65
 6. **Order**: buys a dollar amount (market order), or closes the position on "sell".
    With `DRY_RUN=true` (the default) it only logs what it *would* do.
@@ -79,7 +79,7 @@ pytest -q                   # run the tests (no keys needed)
 ```bash
 python -m bot.backtest                          # trend rule, last 365 days of daily bars
 python -m bot.backtest --days 1825              # trend rule over 5 years (more meaningful)
-python -m bot.backtest --max-position-pct 0.5   # same, with 50% per symbol instead of 10%
+python -m bot.backtest --max-position-pct 0.1   # same, with 10% per symbol instead of 50%
 python -m bot.backtest --analyst ai             # trend rule + AI veto: prints the max call count and cost first
 python -m bot.backtest --strategy intraday      # the original 15-minute strategy
 ```
