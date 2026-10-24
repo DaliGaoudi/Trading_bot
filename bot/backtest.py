@@ -80,7 +80,7 @@ def market_hours(index: pd.DatetimeIndex) -> pd.Series:
     """True for bars that start between 09:30 and 15:45 New York time on a weekday."""
     ny = index.tz_convert(NY) if index.tz is not None else index.tz_localize("UTC").tz_convert(NY)
     minutes = ny.hour * 60 + ny.minute
-    return pd.Series((minutes >= 570) & (minutes < 960) & (ny.weekday < 5), index=index)
+    return pd.Series((minutes >= 570) & (minutes < 960) & (ny.day_of_week < 5), index=index)
 
 
 # ---------- simulation ----------
@@ -344,12 +344,57 @@ def save(result: Result, out_dir: Path):
         pass
 
 
-def ai_decider(cfg):
-    from .analyst import ai_decision
+def ai_decider(cfg, bars, days, workers=8):
+    """Ask the AI about every decision point up front, several charts at a time.
+
+    The AI only sees the chart, never the account, so its answers don't depend on earlier
+    trades and can be fetched in parallel. Charts are drawn first (matplotlib isn't
+    thread-safe), then sent with a progress line every 25 calls."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from .analyst import Decision, ai_decision
     from .chart import render_chart
 
-    def decide(df, symbol):
-        return ai_decision(cfg, df, symbol, render_chart(df, symbol))
+    charts = {}
+
+    def collect(window, symbol):
+        charts[(symbol, window.index[-1])] = (window, render_chart(window, symbol))
+        return Decision("hold", 0.0, "")
+    run(cfg, bars, days, collect)
+
+    def ask(key):
+        window, png = charts[key]
+        for attempt in range(2):
+            try:
+                return ai_decision(cfg, window, key[0], png)
+            except Exception as e:
+                status = getattr(getattr(e, "response", None), "status_code", None)
+                if status in (401, 402, 403):     # bad key or no credit: retrying won't help
+                    raise
+                err = e
+                time.sleep(5)
+        return Decision("hold", 0.0, f"AI call failed: {type(err).__name__}")
+
+    answers, start = {}, time.time()
+    pool = ThreadPoolExecutor(workers)
+    futures = {pool.submit(ask, k): k for k in charts}
+    try:
+        for n, f in enumerate(as_completed(futures), 1):
+            answers[futures[f]] = f.result()
+            if n % 25 == 0 or n == len(charts):
+                left = (time.time() - start) / n * (len(charts) - n)
+                print(f"  {n:,}/{len(charts):,} AI calls done, about {left / 60:.0f} min left", flush=True)
+    except BaseException as e:
+        pool.shutdown(cancel_futures=True)
+        raise SystemExit(f"Stopped after {len(answers):,} AI calls: {e}") from e
+    pool.shutdown()
+    failed = sum(1 for d in answers.values() if d.reason.startswith("AI call failed"))
+    if failed:
+        print(f"  {failed} calls failed twice and count as hold.")
+
+    def decide(window, symbol):
+        return answers[(symbol, window.index[-1])]
     decide.is_ai = True
     return decide
 
@@ -361,7 +406,8 @@ def count_decisions(bars, days):
         first = df.index[-1] - pd.Timedelta(days=days)
         ny_days = df.index.tz_convert(NY).date
         nxt_same_day = pd.Series(ny_days, index=df.index).shift(-1) == pd.Series(ny_days, index=df.index)
-        n += int((mask & mask.shift(-1, fill_value=False) & nxt_same_day & (df.index >= first)).sum())
+        warm = pd.Series(range(len(df)), index=df.index) >= 35
+        n += int((mask & mask.shift(-1, fill_value=False) & nxt_same_day & warm & (df.index >= first)).sum())
     return n
 
 
@@ -376,6 +422,7 @@ def main():
     p.add_argument("--analyst", choices=["rules", "ai"], default="rules",
                    help="ai = AI veto (trend) or AI chart analyst (intraday); asks about cost first")
     p.add_argument("--yes", action="store_true", help="skip the cost question for --analyst ai")
+    p.add_argument("--workers", type=int, default=8, help="AI calls sent at the same time")
     p.add_argument("--out", default="backtest_results")
     args = p.parse_args()
     if not (settings.alpaca_key and settings.alpaca_secret):
@@ -405,7 +452,7 @@ def main():
         decide = None
         if args.analyst == "ai":
             confirm(count_decisions(bars, args.days))
-            decide = ai_decider(settings)
+            decide = ai_decider(settings, bars, args.days, args.workers)
         result = run(settings, bars, args.days, decide, args.equity, args.slippage_bps)
 
     save(result, Path(args.out))
