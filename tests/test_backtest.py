@@ -73,4 +73,37 @@ def test_daily_loss_stop_blocks_new_orders():
 
 def test_count_decisions_skips_last_bar_of_day():
     bars = {"SPY": fake_bars(5)}
-    assert count_decisions(bars, days=100) == 5 * 25
+    # 25 per day, minus the 34 of those that fall in the 35 warm-up bars
+    assert count_decisions(bars, days=100) == 5 * 25 - 34
+
+
+def test_ai_decider_asks_once_per_decision_point(monkeypatch):
+    import bot.analyst
+    from bot.backtest import ai_decider
+
+    calls = []
+
+    def fake_ai(cfg, df, symbol, png):
+        calls.append((symbol, df.index[-1]))
+        return Decision("buy", 0.9, "ai")
+    monkeypatch.setattr(bot.analyst, "ai_decision", fake_ai)
+    bars = {"SPY": fake_bars(3), "QQQ": fake_bars(3, seed=1)}
+    decide = ai_decider(CFG, bars, days=100, workers=4)
+    assert len(calls) == len(set(calls)) == count_decisions(bars, days=100)
+    r = run(CFG, bars, days=100, decide=decide)
+    assert r.ai_calls == len(calls) and r.trades
+
+
+def test_ai_decider_stops_on_payment_error(monkeypatch):
+    import pytest
+    import requests
+    import bot.analyst
+    from bot.backtest import ai_decider
+
+    def no_credit(cfg, df, symbol, png):
+        resp = requests.Response()
+        resp.status_code = 402
+        raise requests.HTTPError("402 Payment Required", response=resp)
+    monkeypatch.setattr(bot.analyst, "ai_decision", no_credit)
+    with pytest.raises(SystemExit, match="402"):
+        ai_decider(CFG, {"SPY": fake_bars(3)}, days=100, workers=2)
