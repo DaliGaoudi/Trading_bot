@@ -1,5 +1,5 @@
 alpaca-py>=0.44
-anthropic>=2.3
+requests>=2.31
 matplotlib>=3.9
 pandas>=2.2
 python-dotenv>=1.0

@@ -51,7 +51,7 @@ def main():
     if not (settings.alpaca_key and settings.alpaca_secret):
         raise SystemExit("Set ALPACA_API_KEY and ALPACA_SECRET_KEY in your .env file first.")
     log.info("paper account, dry_run=%s, analyst=%s", settings.dry_run,
-             "claude" if settings.anthropic_key else "rules")
+             settings.model if settings.openrouter_key else "rules")
     broker = PaperBroker(settings)
     while True:
         run_once(settings, broker)

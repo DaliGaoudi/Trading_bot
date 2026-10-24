@@ -20,8 +20,9 @@ class RiskLimits:
 class Settings:
     alpaca_key: str = field(default_factory=lambda: os.getenv("ALPACA_API_KEY", ""))
     alpaca_secret: str = field(default_factory=lambda: os.getenv("ALPACA_SECRET_KEY", ""))
-    anthropic_key: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
-    model: str = field(default_factory=lambda: os.getenv("CLAUDE_MODEL", "claude-opus-5-5"))
+    openrouter_key: str = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
+    # Any OpenRouter model that accepts images, e.g. google/gemini-3.6-flash (cheaper).
+    model: str = field(default_factory=lambda: os.getenv("AI_MODEL", "anthropic/claude-sonnet-5"))
     dry_run: bool = field(default_factory=lambda: os.getenv("DRY_RUN", "true").lower() != "false")
     timeframe_minutes: int = 15
     lookback_bars: int = 120

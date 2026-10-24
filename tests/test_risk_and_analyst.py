@@ -61,3 +61,32 @@ def test_pipeline_on_fake_bars():
     df = add_indicators(df)
     assert render_chart(df, "SPY")[:4] == b"\x89PNG"
     assert rule_based(df).action in ("buy", "sell", "hold")
+
+
+def test_openrouter_request(monkeypatch):
+    import requests
+    from types import SimpleNamespace
+    from bot.analyst import ai_decision
+
+    sent = {}
+
+    class Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"action": "sell", "confidence": 0.8, "reason": "x"}'}}]}
+
+    def fake_post(url, headers, json, timeout):
+        sent.update(url=url, headers=headers, body=json)
+        return Resp()
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    cfg = SimpleNamespace(openrouter_key="k", model="anthropic/claude-sonnet-5", timeframe_minutes=15)
+    df = pd.DataFrame({"close": [500.0], "rsi": [55.0]})
+    d = ai_decision(cfg, df, "SPY", b"png")
+    assert d.action == "sell" and d.confidence == 0.8
+    assert sent["url"].startswith("https://openrouter.ai/")
+    assert sent["headers"]["Authorization"] == "Bearer k"
+    assert sent["body"]["model"] == "anthropic/claude-sonnet-5"
+    assert sent["body"]["messages"][0]["content"][0]["type"] == "image_url"

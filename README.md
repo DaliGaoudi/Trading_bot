@@ -1,6 +1,6 @@
-# Paper trading bot (Alpaca + Claude)
+# Paper trading bot (Alpaca + AI via OpenRouter)
 
-A small Python bot that looks at price charts for SPY and QQQ, asks Claude (or a simple
+A small Python bot that looks at price charts for SPY and QQQ, asks an AI model through OpenRouter (or a simple
 rule set) whether to buy, sell or hold, checks the answer against risk limits, and places
 orders on your **Alpaca paper account only**. There is no live-trading code path:
 `paper=True` is hard-coded and asserted.
@@ -10,8 +10,8 @@ orders on your **Alpaca paper account only**. There is no live-trading code path
 1. **Fetch bars**: last ~120 fifteen-minute bars from Alpaca (free IEX feed). `bot/data.py`
 2. **Indicators**: SMA 10, SMA 30, RSI 14. `bot/indicators.py`
 3. **Chart**: draws a candlestick chart PNG. `bot/chart.py`
-4. **Analyse**: sends the chart image to Claude and gets back JSON
-   `{action, confidence, reason}`. With no Anthropic key it falls back to an SMA crossover rule. `bot/analyst.py`
+4. **Analyse**: sends the chart image to the model set in `AI_MODEL` (via OpenRouter) and gets back JSON
+   `{action, confidence, reason}`. With no OpenRouter key it falls back to an SMA crossover rule. `bot/analyst.py`
 5. **Risk check**: every order must pass `bot/risk.py`:
    - only symbols on the allow-list (SPY, QQQ)
    - at most 10% of equity in one symbol
@@ -39,8 +39,10 @@ Open `.env` in a text editor and paste your keys there (never in chat, never in 
 
 - `ALPACA_API_KEY` and `ALPACA_SECRET_KEY`: from the Alpaca dashboard, make sure the
   toggle at the top says **Paper**, then "API Keys" → Generate/Regenerate.
-- `ANTHROPIC_API_KEY` (optional): from console.anthropic.com. Each chart analysis is one
+- `OPENROUTER_API_KEY` (optional): from openrouter.ai → Keys. Each chart analysis is one
   API call, so a loop over 2 symbols every 15 minutes is roughly 50 calls per trading day.
+- `AI_MODEL`: any OpenRouter model that accepts images. Default `anthropic/claude-sonnet-5`
+  (about $0.20 per trading day); `google/gemini-3.6-flash` is about a third of that.
 
 `.env` is listed in `.gitignore`, so it won't be uploaded if you put this on GitHub.
 

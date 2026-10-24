@@ -42,28 +42,33 @@ def rule_based(df) -> Decision:
 
 
 def ai_decision(cfg, df, symbol: str, png: bytes) -> Decision:
-    import anthropic
+    import requests
 
-    client = anthropic.Anthropic(api_key=cfg.anthropic_key)
     last = df.iloc[-1]
-    msg = client.messages.create(
-        model=cfg.model,
-        max_tokens=300,
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": "image/png",
-                                             "data": base64.b64encode(png).decode()}},
-                {"type": "text", "text": PROMPT.format(symbol=symbol, minutes=cfg.timeframe_minutes,
-                                                       close=last.close, rsi=last.rsi)},
-            ],
-        }],
+    image_url = "data:image/png;base64," + base64.b64encode(png).decode()
+    resp = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {cfg.openrouter_key}"},
+        json={
+            "model": cfg.model,
+            "max_tokens": 300,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                    {"type": "text", "text": PROMPT.format(symbol=symbol, minutes=cfg.timeframe_minutes,
+                                                           close=last.close, rsi=last.rsi)},
+                ],
+            }],
+        },
+        timeout=60,
     )
-    text = "".join(b.text for b in msg.content if b.type == "text")
+    resp.raise_for_status()
+    text = resp.json()["choices"][0]["message"]["content"] or ""
     return parse_decision(text)
 
 
 def analyse(cfg, df, symbol: str, png: bytes) -> Decision:
-    if cfg.anthropic_key:
+    if cfg.openrouter_key:
         return ai_decision(cfg, df, symbol, png)
     return rule_based(df)
