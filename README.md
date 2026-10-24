@@ -54,6 +54,21 @@ python -m bot.main --loop   # repeat every 15 minutes (Ctrl+C to stop)
 pytest -q                   # run the tests (no keys needed)
 ```
 
+## Backtest
+
+```bash
+python -m bot.backtest              # last 365 days of SPY/QQQ 15-minute bars, rule-based analyst
+python -m bot.backtest --days 90    # shorter window
+python -m bot.backtest --analyst ai # AI analyst: prints the number of calls and a cost estimate first
+```
+
+It replays the same decision code and `bot/risk.py` limits bar by bar, starting from $100,000,
+filling each order at the next bar's open (plus 0.01% slippage), and prints profit/loss, max
+drawdown and order count next to buy-and-hold SPY. Results go to `backtest_results/`
+(`summary.txt`, `trades.csv`, `equity.csv`, `equity.png`); downloaded bars are cached in `data/`.
+Replaying the AI over a year is about 12,500 chart calls (roughly $25-65 with Sonnet 5), so it asks
+before sending anything. Past results don't predict future returns.
+
 The US market is open 15:30–22:00 German time (Mon–Fri); outside those hours the bot
 logs "market closed" and does nothing. Watch a few dry runs, then set `DRY_RUN=false` to
 let it place paper orders, and check them in the Alpaca paper dashboard.
@@ -62,7 +77,8 @@ let it place paper orders, and check them in the Alpaca paper dashboard.
 
 1. Run in dry-run mode for a few days and read the reasons it gives.
 2. Turn on paper orders; log every decision to a CSV so results can be reviewed.
-3. Backtest the rules and the AI on past data to see whether either beats just holding SPY.
+3. Backtest the rules and the AI on past data to see whether either beats just holding SPY
+   (`python -m bot.backtest`).
 4. Add stop-loss / take-profit (bracket orders).
 5. Only after weeks of paper results: think about real money (and re-check whether
    Alpaca accepts live accounts from Germany).
