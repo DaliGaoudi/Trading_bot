@@ -7,7 +7,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
-def render_chart(df, symbol: str) -> bytes:
+def render_chart(df, symbol: str, labels=("SMA 10", "SMA 30")) -> bytes:
     fig, (ax, ax_rsi) = plt.subplots(2, 1, figsize=(10, 6), sharex=True,
                                      gridspec_kw={"height_ratios": [3, 1]})
     x = range(len(df))
@@ -16,8 +16,8 @@ def render_chart(df, symbol: str) -> bytes:
     ax.vlines(x, df["low"], df["high"], color=colors, linewidth=1)
     ax.bar(x, (df["close"] - df["open"]).abs(), bottom=df[["open", "close"]].min(axis=1),
            color=colors, width=0.7)
-    ax.plot(x, df["sma_fast"], label="SMA 10", linewidth=1)
-    ax.plot(x, df["sma_slow"], label="SMA 30", linewidth=1)
+    ax.plot(x, df["sma_fast"], label=labels[0], linewidth=1)
+    ax.plot(x, df["sma_slow"], label=labels[1], linewidth=1)
     ax.set_title(f"{symbol} — last {len(df)} bars")
     ax.legend(loc="upper left")
     ax_rsi.plot(x, df["rsi"], color="#6a4c93", linewidth=1)

@@ -24,6 +24,12 @@ class Settings:
     # Any OpenRouter model that accepts images, e.g. google/gemini-3.6-flash (cheaper).
     model: str = field(default_factory=lambda: os.getenv("AI_MODEL", "anthropic/claude-sonnet-5"))
     dry_run: bool = field(default_factory=lambda: os.getenv("DRY_RUN", "true").lower() != "false")
+    # "trend": daily 200-day average rule with an AI veto (default, best evidence).
+    # "intraday": the original 15-minute SMA/RSI chart analyst.
+    strategy: str = field(default_factory=lambda: os.getenv("STRATEGY", "trend").lower())
+    trend_sma_days: int = 200
+    # In trend mode, let the AI (if OPENROUTER_API_KEY is set) veto buys. It can never add trades.
+    ai_veto: bool = field(default_factory=lambda: os.getenv("AI_VETO", "true").lower() != "false")
     timeframe_minutes: int = 15
     lookback_bars: int = 120
     risk: RiskLimits = RiskLimits()
